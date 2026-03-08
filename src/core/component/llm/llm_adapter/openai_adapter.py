@@ -27,6 +27,28 @@ class OpenAIAdapter(LLMBackendAdapter):
             api_key=self.api_key, base_url=self.base_url, timeout=self.timeout
         )
 
+    @staticmethod
+    def _should_use_max_completion_tokens(model: str | None) -> bool:
+        """GPT-5 series uses max_completion_tokens instead of max_tokens."""
+        if not model:
+            return False
+        normalized_model = model.lower().split("/")[-1]
+        return normalized_model.startswith("gpt-5")
+
+    @staticmethod
+    def _normalize_temperature_for_model(
+        model: str | None, temperature: float | None
+    ) -> float | None:
+        """
+        GPT-5 series currently only supports default temperature behavior.
+        To avoid 400 errors, omit temperature for gpt-5* models.
+        """
+        if temperature is None:
+            return None
+        if OpenAIAdapter._should_use_max_completion_tokens(model):
+            return None
+        return temperature
+
     async def chat_completion(
         self, request: ChatCompletionRequest
     ) -> Union[ChatCompletionResponse, AsyncGenerator[str, None]]:
@@ -42,13 +64,18 @@ class OpenAIAdapter(LLMBackendAdapter):
         client_params = {
             "model": params.get("model"),
             "messages": params.get("messages"),
-            "temperature": params.get("temperature"),
-            "max_tokens": params.get("max_tokens"),
+            "temperature": self._normalize_temperature_for_model(
+                params.get("model"), params.get("temperature")
+            ),
             "top_p": params.get("top_p"),
             "frequency_penalty": params.get("frequency_penalty"),
             "presence_penalty": params.get("presence_penalty"),
             "stream": params.get("stream", False),
         }
+        if self._should_use_max_completion_tokens(params.get("model")):
+            client_params["max_completion_tokens"] = params.get("max_tokens")
+        else:
+            client_params["max_tokens"] = params.get("max_tokens")
         # Remove None values to avoid openai errors
         final_params = {k: v for k, v in client_params.items() if v is not None}
 

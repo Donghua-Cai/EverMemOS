@@ -9,9 +9,9 @@ adapter: "evermemos"
 # LLM configuration
 llm:
   provider: "openai"
-  model: "openai/gpt-4.1-mini"
+  model: "${LLM_MODEL:gpt-5.1-mini}"
   api_key: "${LLM_API_KEY}"
-  base_url: "${LLM_BASE_URL:https://openrouter.ai/api/v1}"
+  base_url: "${LLM_BASE_URL:https://api.openai.com/v1}"
 
 search:
   mode: "agentic"  # agentic | lightweight
@@ -19,4 +19,3 @@ search:
   # Uncomment and set the following to override:
   # lightweight_search_mode: "hybrid"   # BM25 + Embedding + RRF fusion
   # lightweight_search_mode: "emb_only" # Only Embedding search
-

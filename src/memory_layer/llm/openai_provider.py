@@ -59,10 +59,48 @@ class OpenAIProvider(LLMProvider):
         # Use OpenRouter API key and base URL
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
         self.base_url = base_url or "https://openrouter.ai/api/v1"
+        self.model = self._normalize_model_for_base_url(self.model, self.base_url)
 
         # New: optional per-call statistics (disabled by default, does not affect existing usage)
         if self.enable_stats:
             self.current_call_stats = None  # Store statistics for current call
+
+    @staticmethod
+    def _should_use_max_completion_tokens(model: str | None) -> bool:
+        """GPT-5 series uses max_completion_tokens instead of max_tokens."""
+        if not model:
+            return False
+        normalized_model = model.lower().split("/")[-1]
+        return normalized_model.startswith("gpt-5")
+
+    @staticmethod
+    def _normalize_model_for_base_url(model: str, base_url: str | None) -> str:
+        """
+        Normalize model id for provider-specific conventions.
+        OpenRouter expects vendor-prefixed model ids like `openai/gpt-5.1-mini`.
+        """
+        if not model:
+            return model
+        if not base_url:
+            return model
+        is_openrouter = "openrouter.ai" in base_url.lower()
+        if is_openrouter and "/" not in model and model.lower().startswith("gpt-"):
+            return f"openai/{model}"
+        return model
+
+    @staticmethod
+    def _normalize_temperature_for_model(
+        model: str | None, temperature: float | None
+    ) -> float | None:
+        """
+        GPT-5 series currently only supports default temperature behavior.
+        To avoid 400 errors, omit temperature for gpt-5* models.
+        """
+        if temperature is None:
+            return None
+        if OpenAIProvider._should_use_max_completion_tokens(model):
+            return None
+        return temperature
 
     async def generate(
         self,
@@ -89,27 +127,38 @@ class OpenAIProvider(LLMProvider):
         # Use time.perf_counter() for more precise time measurement
         start_time = time.perf_counter()
         # Prepare request data
-        if os.getenv("LLM_OPENROUTER_PROVIDER", "default") != "default":
+        is_openrouter = "openrouter.ai" in (self.base_url or "").lower()
+        if is_openrouter and os.getenv("LLM_OPENROUTER_PROVIDER", "default") != "default":
             provider_str = os.getenv('LLM_OPENROUTER_PROVIDER')
             provider_list = [p.strip() for p in provider_str.split(',')]
             openrouter_provider = {"order": provider_list, "allow_fallbacks": False}
         else:
             openrouter_provider = None
         # Prepare request data
+        effective_temperature = self._normalize_temperature_for_model(
+            self.model, temperature if temperature is not None else self.temperature
+        )
+
         data = {
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature if temperature is not None else self.temperature,
-            "provider": openrouter_provider,
             "response_format": response_format,
         }
+        if effective_temperature is not None:
+            data["temperature"] = effective_temperature
+        if openrouter_provider is not None:
+            data["provider"] = openrouter_provider
         # print(data)
         # print(data["extra_body"])
         # Add max_tokens if specified
-        if max_tokens is not None:
-            data["max_tokens"] = max_tokens
-        elif self.max_tokens is not None:
-            data["max_tokens"] = self.max_tokens
+        token_limit = max_tokens if max_tokens is not None else self.max_tokens
+        if token_limit is not None:
+            token_param_name = (
+                "max_completion_tokens"
+                if self._should_use_max_completion_tokens(self.model)
+                else "max_tokens"
+            )
+            data[token_param_name] = token_limit
 
         # Use asynchronous aiohttp instead of synchronous urllib
         headers = {

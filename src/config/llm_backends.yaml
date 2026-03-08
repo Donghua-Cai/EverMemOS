@@ -12,6 +12,7 @@ llm_backends:
       - "gpt-3.5-turbo"
       - "gpt-4o"
       - "gpt-4o-mini"
+      - "gpt-5.1-mini"
     model: "gpt-4o"
     timeout: 600  # Increase to 10 minutes, suitable for time-consuming tasks like paper information extraction
     max_retries: 3
