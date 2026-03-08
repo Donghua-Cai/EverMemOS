@@ -693,7 +693,7 @@ class Pipeline:
 
         # Save report
         report_path = self.output_dir / "report.txt"
-        with open(report_path, "w") as f:
+        with open(report_path, "w", encoding="utf-8") as f:
             f.write(report_text)
 
         # Print to console
