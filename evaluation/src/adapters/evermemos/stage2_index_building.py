@@ -111,6 +111,24 @@ def tokenize(text: str, stemmer, stop_words: set) -> list[str]:
     return processed_tokens
 
 
+def _load_json_with_fallback(file_path: Path):
+    """
+    Load JSON with encoding fallback for cross-platform compatibility.
+    """
+    encodings = ("utf-8", "utf-8-sig", "gb18030", "cp936")
+    last_error = None
+    for enc in encodings:
+        try:
+            with open(file_path, "r", encoding=enc) as f:
+                return json.load(f)
+        except UnicodeDecodeError as e:
+            last_error = e
+            continue
+    if last_error is not None:
+        raise last_error
+    raise UnicodeDecodeError("utf-8", b"", 0, 1, f"Failed to decode {file_path}")
+
+
 def build_bm25_index(
     config: ExperimentConfig, data_dir: Path, bm25_save_dir: Path
 ) -> list[list[float]]:
@@ -137,14 +155,13 @@ def build_bm25_index(
         corpus = []
         original_docs = []
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = _load_json_with_fallback(file_path)
 
-            for doc in data:
-                original_docs.append(doc)
-                searchable_text = build_searchable_text(doc)
-                tokenized_text = tokenize(searchable_text, stemmer, stop_words)
-                corpus.append(tokenized_text)
+        for doc in data:
+            original_docs.append(doc)
+            searchable_text = build_searchable_text(doc)
+            tokenized_text = tokenize(searchable_text, stemmer, stop_words)
+            corpus.append(tokenized_text)
 
         if not corpus:
             print(
@@ -200,8 +217,7 @@ async def build_emb_index(config: ExperimentConfig, data_dir: Path, emb_save_dir
         print(f"Processing {file_path.name} for embedding...")
         print(f"{'='*60}")
 
-        with open(file_path, "r", encoding="utf-8") as f:
-            original_docs = json.load(f)
+        original_docs = _load_json_with_fallback(file_path)
 
         texts_to_embed = []
         doc_field_map = []
