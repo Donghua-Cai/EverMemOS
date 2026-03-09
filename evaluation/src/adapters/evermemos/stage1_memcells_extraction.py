@@ -477,10 +477,16 @@ async def process_single_conversation(
         ]
 
         async def extract_single_event_log(idx: int, memcell):
-            event_log = await event_log_extractor.extract_event_log(
-                memcell=memcell, timestamp=memcell.timestamp
-            )
-            return idx, event_log
+            try:
+                event_log = await event_log_extractor.extract_event_log(
+                    memcell=memcell, timestamp=memcell.timestamp
+                )
+                return idx, event_log
+            except Exception as e:
+                print(
+                    f"⚠️ Event log extraction failed for conv={conv_id}, memcell_idx={idx}: {e}"
+                )
+                return idx, None
 
         sem = asyncio.Semaphore(20)
 
