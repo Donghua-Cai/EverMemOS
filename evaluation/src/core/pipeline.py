@@ -211,6 +211,42 @@ class Pipeline:
                     f"[dim]   Remaining questions: {len(dataset.qa_pairs)}[/dim]\n"
                 )
 
+        # LongMemEval-specific behavior:
+        # Keep conversations aligned with remaining QA pairs so Add/Search/Answer run on the same sample set.
+        # LongMemEval has one QA per conversation, so filtering QA categories should also filter Add samples.
+        if dataset.dataset_name == "longmemeval":
+            original_conv_count = len(dataset.conversations)
+            remaining_conv_ids = {
+                qa.metadata.get("conversation_id")
+                for qa in dataset.qa_pairs
+                if qa.metadata.get("conversation_id")
+            }
+            dataset.conversations = [
+                conv
+                for conv in dataset.conversations
+                if conv.conversation_id in remaining_conv_ids
+            ]
+            filtered_conv_count = original_conv_count - len(dataset.conversations)
+            if filtered_conv_count > 0:
+                self.console.print(
+                    f"[dim]🧩 LongMemEval sync: filtered out {filtered_conv_count} conversations to match remaining QA[/dim]"
+                )
+                self.console.print(
+                    f"[dim]   Remaining conversations: {len(dataset.conversations)}[/dim]\n"
+                )
+
+        # Re-check after QA/category synchronization
+        if len(dataset.conversations) == 0:
+            self.console.print(
+                f"[red]❌ No conversations left after category filtering.[/red]"
+            )
+            return {
+                "error": "No conversations left after filtering",
+                "stages_completed": [],
+                "total_conversations": 0,
+                "total_questions": len(dataset.qa_pairs),
+            }
+
         # Try loading checkpoint
         search_results_data = None
         answer_results_data = None
