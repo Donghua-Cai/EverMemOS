@@ -32,5 +32,5 @@ evaluation:
   num_runs: 3
   
   # LongMemEval categories: "single-session-user", "multi-session-user", etc.
-  filter_category: []  # If you need to filter, add to the list: ["single-session-user", ...]
+  filter_category: ["single-session-user", "single-session-assistant", "single-session-preference", "multi-session", "knowledge-update"]  # If you need to filter, add to the list: ["single-session-user", ...]
 
