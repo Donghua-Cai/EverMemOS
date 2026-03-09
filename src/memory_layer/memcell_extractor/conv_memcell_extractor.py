@@ -126,7 +126,8 @@ class ConvMemCellExtractor(MemCellExtractor):
                 text = f"{speaker}: {content}" if speaker else content
             else:
                 text = str(msg)
-            total += len(tokenizer.encode(text))
+            # Treat special-token-like text as plain text for robust counting.
+            total += len(tokenizer.encode(text, disallowed_special=()))
         return total
 
     def _extract_participant_ids(
