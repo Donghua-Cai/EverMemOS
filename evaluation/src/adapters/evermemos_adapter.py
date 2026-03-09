@@ -64,6 +64,7 @@ class EverMemOSAdapter(BaseAdapter):
         # Initialize LLM Provider (shared across all stages)
         # Read from YAML llm configuration
         llm_config = config.get("llm", {})
+        llm_answer_config = config.get("llm_answer", llm_config)
 
         self.llm_provider = LLMProvider(
             provider_type=llm_config.get("provider", "openai"),
@@ -72,6 +73,21 @@ class EverMemOSAdapter(BaseAdapter):
             base_url=llm_config.get("base_url", "https://api.openai.com/v1"),
             temperature=llm_config.get("temperature", 0.3),
             max_tokens=llm_config.get("max_tokens", 32768),
+        )
+        self.answer_llm_provider = LLMProvider(
+            provider_type=llm_answer_config.get("provider")
+            or llm_config.get("provider", "openai"),
+            model=llm_answer_config.get("model")
+            or llm_config.get("model", "gpt-4o-mini"),
+            api_key=llm_answer_config.get("api_key") or llm_config.get("api_key", ""),
+            base_url=llm_answer_config.get("base_url")
+            or llm_config.get("base_url", "https://api.openai.com/v1"),
+            temperature=llm_answer_config.get(
+                "temperature", llm_config.get("temperature", 0.3)
+            ),
+            max_tokens=llm_answer_config.get(
+                "max_tokens", llm_config.get("max_tokens", 32768)
+            ),
         )
 
         # Initialize Event Log Extractor
@@ -82,6 +98,9 @@ class EverMemOSAdapter(BaseAdapter):
 
         print(f"✅ EverMemOS Adapter initialized")
         print(f"   LLM Model: {llm_config.get('model')}")
+        print(
+            f"   Answer LLM Model: {llm_answer_config.get('model', llm_config.get('model'))}"
+        )
         print(f"   Output Dir: {self.output_dir}")
 
     @staticmethod
@@ -594,7 +613,7 @@ class EverMemOSAdapter(BaseAdapter):
         exp_config = self._convert_config_to_experiment_config()
 
         answer = await stage4_response.locomo_response(
-            llm_provider=self.llm_provider,
+            llm_provider=self.answer_llm_provider,
             context=context,
             question=query,
             experiment_config=exp_config,

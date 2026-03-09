@@ -13,6 +13,14 @@ llm:
   api_key: "${LLM_API_KEY}"
   base_url: "${LLM_BASE_URL:https://api.openai.com/v1}"
 
+# Optional: dedicated LLM for answer stage (Stage 3).
+# If not set, adapter falls back to `llm` settings.
+llm_answer:
+  provider: "openai"
+  model: "${LLM_ANSWER_MODEL:gpt-5-mini}"
+  api_key: "${LLM_ANSWER_API_KEY}"
+  base_url: "${LLM_ANSWER_BASE_URL:https://api.openai.com/v1}"
+
 search:
   mode: "agentic"  # agentic | lightweight
   # When mode="lightweight", the search method defaults to "bm25_only".
