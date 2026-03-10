@@ -129,6 +129,19 @@ def _load_json_with_fallback(file_path: Path):
     raise UnicodeDecodeError("utf-8", b"", 0, 1, f"Failed to decode {file_path}")
 
 
+def _collect_conversation_indices(data_dir: Path) -> list[int]:
+    """
+    Collect conversation indices from existing memcell files.
+    Expected filename: memcell_list_conv_<idx>.json
+    """
+    conv_indices: list[int] = []
+    for file_path in data_dir.glob("memcell_list_conv_*.json"):
+        suffix = file_path.stem.replace("memcell_list_conv_", "")
+        if suffix.isdigit():
+            conv_indices.append(int(suffix))
+    return sorted(conv_indices)
+
+
 def build_bm25_index(
     config: ExperimentConfig, data_dir: Path, bm25_save_dir: Path
 ) -> list[list[float]]:
@@ -144,8 +157,13 @@ def build_bm25_index(
 
     print(f"Reading data from: {data_dir}")
 
-    for i in range(config.num_conv):
-        file_path = data_dir / f"memcell_list_conv_{i}.json"
+    conv_indices = _collect_conversation_indices(data_dir)
+    if not conv_indices:
+        print(f"Warning: No memcell files found, skipping BM25 build: {data_dir}")
+        return []
+
+    for conv_idx in conv_indices:
+        file_path = data_dir / f"memcell_list_conv_{conv_idx}.json"
         if not file_path.exists():
             print(f"Warning: File not found, skipping: {file_path}")
             continue
@@ -178,7 +196,7 @@ def build_bm25_index(
         # --- Saving the Index ---
         index_data = {"bm25": bm25, "docs": original_docs}
 
-        output_path = bm25_save_dir / f"bm25_index_conv_{i}.pkl"
+        output_path = bm25_save_dir / f"bm25_index_conv_{conv_idx}.pkl"
         print(f"Saving index to: {output_path}")
         with open(output_path, "wb") as f:
             pickle.dump(index_data, f)
@@ -207,8 +225,13 @@ async def build_emb_index(config: ExperimentConfig, data_dir: Path, emb_save_dir
 
     import time  # For performance statistics
 
-    for i in range(config.num_conv):
-        file_path = data_dir / f"memcell_list_conv_{i}.json"
+    conv_indices = _collect_conversation_indices(data_dir)
+    if not conv_indices:
+        print(f"Warning: No memcell files found, skipping embedding build: {data_dir}")
+        return
+
+    for conv_idx in conv_indices:
+        file_path = data_dir / f"memcell_list_conv_{conv_idx}.json"
         if not file_path.exists():
             print(f"Warning: File not found, skipping: {file_path}")
             continue
@@ -381,7 +404,7 @@ async def build_emb_index(config: ExperimentConfig, data_dir: Path, emb_save_dir
         #     },
         #     ...
         # ]
-        output_path = emb_save_dir / f"embedding_index_conv_{i}.pkl"
+        output_path = emb_save_dir / f"embedding_index_conv_{conv_idx}.pkl"
         emb_save_dir.mkdir(parents=True, exist_ok=True)
         print(f"Saving embeddings to: {output_path}")
         with open(output_path, "wb") as f:
