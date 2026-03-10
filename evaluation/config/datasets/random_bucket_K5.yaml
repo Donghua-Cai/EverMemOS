@@ -1,0 +1,38 @@
+# Random Bucket K5 Dataset Configuration
+
+name: "random_bucket_K5"
+version: "1.0"
+description: "Random-bucket-K5 variant of LongMemEval with message-level timestamps"
+
+# Memory language setting (overrides MEMORY_LANGUAGE env var)
+memory_language: "en"
+
+# Data configuration
+data:
+  # Expected preprocessed Locomo-style file path (relative to evaluation/data/)
+  path: "random_bucket_K5/random_bucket_K5_locomo_style.json"
+  format: "locomo"  # Native format, no conversion needed
+  max_content_length: 8000
+
+# Evaluation configuration
+evaluation:
+  type: "llm_judge"
+
+  llm:
+    provider: "openai"
+    model: "gpt-4o-mini"
+    api_key: "${LLM_API_KEY}"
+    base_url: "${LLM_BASE_URL:https://openrouter.ai/api/v1}"
+
+  num_runs: 3
+
+  # Keep same default category scope as longmemeval; adjust when needed.
+  filter_category:
+    [
+      "single-session-user",
+      "single-session-assistant",
+      "single-session-preference",
+      "multi-session",
+      "knowledge-update",
+      "temporal-reasoning",
+    ]
