@@ -138,6 +138,8 @@ evaluation/static_memory_evaluation/retrieval_bk/
 evaluation/static_memory_evaluation/analysis/
 evaluation/longmemeval/*.json
 evaluation/data/longmemeval/*.json
+evaluation/data/random_merge
+evaluation/data/random_bucket_K5
 memory_base/static_memory_base/bm25_index/
 memory_base/static_memory_base/hipporag/
 memory_base/static_memory_base/vector_search/
