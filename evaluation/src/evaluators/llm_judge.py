@@ -36,6 +36,10 @@ class LLMJudge(BaseEvaluator):
         )
         self.model = llm_config.get("model", "gpt-4o-mini")
         self.num_runs = config.get("num_runs", 3)
+        # Judge prompt variant:
+        # - legacy (default): existing CORRECT/WRONG with {"label": "..."}
+        # - vsm: richer verdict with {"is_correct": bool, "verdict": ..., "reason": ...}
+        self.prompt_variant = config.get("prompt_variant", "legacy")
 
     async def evaluate(self, answer_results: List[AnswerResult]) -> EvaluationResult:
         """
@@ -152,6 +156,7 @@ class LLMJudge(BaseEvaluator):
             metadata={
                 "model": self.model,
                 "num_runs": self.num_runs,
+                "prompt_variant": self.prompt_variant,
                 "mean_accuracy": mean_accuracy,
                 "std_accuracy": std_accuracy,
                 "run_scores": run_scores,
@@ -230,10 +235,11 @@ class LLMJudge(BaseEvaluator):
         Returns:
             True if correct, False if wrong
         """
-        # Use configured prompts
-        system_prompt = get_prompt("llm_judge", "system_prompt")
+        # Use configured prompts by variant
+        prompt_key = "llm_judge_vsm" if self.prompt_variant == "vsm" else "llm_judge"
+        system_prompt = get_prompt(prompt_key, "system_prompt")
         user_prompt = format_prompt(
-            "llm_judge",
+            prompt_key,
             "user_prompt",
             question=question,
             golden_answer=golden_answer,
@@ -265,13 +271,7 @@ class LLMJudge(BaseEvaluator):
                 return False
 
             result = json.loads(json_str)
-            label = result.get("label", "")
-            if not label:
-                print(f"  ⚠️ LLM Judge: No label found in response")
-                print(f"     Raw response: {content}...")
-                return False
-
-            return label.strip().upper() == "CORRECT"
+            return self._parse_judge_result(result, content)
 
         except json.JSONDecodeError as e:
             print(f"  ⚠️ LLM Judge JSON parse failed: {e}")
@@ -306,3 +306,29 @@ class LLMJudge(BaseEvaluator):
 
         # Try 3: Return original content (let json.loads handle it)
         return content.strip()
+
+    def _parse_judge_result(self, result: dict, raw_content: str) -> bool:
+        """
+        Parse judge output to bool based on configured variant.
+        """
+        if self.prompt_variant == "vsm":
+            # Preferred key in VSM mode
+            if "is_correct" in result:
+                return bool(result.get("is_correct"))
+
+            # Fallback: infer from verdict if model omitted is_correct
+            verdict = str(result.get("verdict", "")).strip().lower()
+            if verdict:
+                return verdict == "correct"
+
+            print("  ⚠️ LLM Judge(VSM): Missing both is_correct and verdict")
+            print(f"     Raw response: {raw_content[:200]}...")
+            return False
+
+        # Legacy behavior
+        label = result.get("label", "")
+        if not label:
+            print("  ⚠️ LLM Judge: No label found in response")
+            print(f"     Raw response: {raw_content[:200]}...")
+            return False
+        return str(label).strip().upper() == "CORRECT"
