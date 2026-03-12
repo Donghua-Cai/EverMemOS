@@ -12,7 +12,7 @@ data:
   # Expected preprocessed Locomo-style file path (relative to evaluation/data/)
   path: "random_merge/random_merge_locomo_style.json"
   format: "locomo"  # Native format, no conversion needed
-  max_content_length: 8000
+  # max_content_length: 8000
 
 # Evaluation configuration
 evaluation:
@@ -34,5 +34,4 @@ evaluation:
       "single-session-preference",
       "multi-session",
       "knowledge-update",
-      "temporal-reasoning",
     ]
