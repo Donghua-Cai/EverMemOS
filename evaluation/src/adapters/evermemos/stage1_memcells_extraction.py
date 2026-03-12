@@ -291,17 +291,24 @@ async def memcell_extraction_from_conversation(
             else:
                 history_raw_data_list = [raw_data]
 
-            # ✅ Serial extraction: detect boundary, immediately extract all memories for this MemCell
-            # This allows Clustering and Profile to immediately use the complete MemCell
-            await _extract_all_memories_for_memcell(
-                memcell=memcell_result,
-                speakers=speakers,
-                episode_extractor=episode_extractor,
-                foresight_extractor=foresight_extractor,
-                conv_id=conv_id,
-            )
-
-            memcell_list.append(memcell_result)
+            # Serial extraction: detect boundary, immediately extract all memories for this MemCell.
+            # Keep pipeline robust: if a single memcell fails (e.g., invalid LLM JSON), skip it
+            # instead of failing the whole conversation.
+            try:
+                await _extract_all_memories_for_memcell(
+                    memcell=memcell_result,
+                    speakers=speakers,
+                    episode_extractor=episode_extractor,
+                    foresight_extractor=foresight_extractor,
+                    conv_id=conv_id,
+                )
+                memcell_list.append(memcell_result)
+            except Exception as e:
+                Console().print(
+                    f"⚠️  Skip memcell memory extraction failed "
+                    f"(conv_id={conv_id}, memcell_id={memcell_result.event_id}): {e}",
+                    style="yellow",
+                )
         else:
             console = Console()
             console.print("--------------------------------")
@@ -346,16 +353,23 @@ async def memcell_extraction_from_conversation(
             original_data_list.append(memcell_extractor._data_process(raw_data))
         memcell.original_data = original_data_list
 
-        # Serial extraction of all memories for the last MemCell
-        await _extract_all_memories_for_memcell(
-            memcell=memcell,
-            speakers=speakers,
-            episode_extractor=episode_extractor,
-            foresight_extractor=foresight_extractor,
-            conv_id=conv_id,
-        )
-
-        memcell_list.append(memcell)
+        # Serial extraction of all memories for the last MemCell.
+        # Skip on failure to avoid aborting the whole run.
+        try:
+            await _extract_all_memories_for_memcell(
+                memcell=memcell,
+                speakers=speakers,
+                episode_extractor=episode_extractor,
+                foresight_extractor=foresight_extractor,
+                conv_id=conv_id,
+            )
+            memcell_list.append(memcell)
+        except Exception as e:
+            Console().print(
+                f"⚠️  Skip final memcell memory extraction failed "
+                f"(conv_id={conv_id}, memcell_id={memcell.event_id}): {e}",
+                style="yellow",
+            )
 
     return memcell_list
 
