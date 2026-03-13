@@ -263,6 +263,10 @@ def _convert_locomo_qa_pair(qa_item: dict, conv_id: str, qa_idx: int) -> QAPair:
     # If has all_options (PersonaMem multiple choice), save to metadata
     if "all_options" in qa_item:
         metadata["all_options"] = qa_item["all_options"]
+
+    # Preserve question reference date if provided by dataset converter
+    if "question_date" in qa_item and qa_item["question_date"]:
+        metadata["question_date"] = qa_item["question_date"]
     
     # Prefer question_id from data if exists, otherwise generate unique ID
     question_id = qa_item.get("question_id")
@@ -307,6 +311,5 @@ def _parse_locomo_timestamp(timestamp_str: str) -> Optional[datetime]:
         # If parse fails, return None and print warning
         print(f"⚠️  Warning: Failed to parse timestamp '{timestamp_str}', no timestamp will be set")
         return None
-
 
 

@@ -112,6 +112,8 @@ async def locomo_response(
     context: str,
     question: str,
     experiment_config: ExperimentConfig,
+    question_reference_time: Optional[str] = None,
+    conversation_reference_time: Optional[str] = None,
 ) -> str:
     """Generate answer (using LLMProvider).
 
@@ -124,7 +126,23 @@ async def locomo_response(
     Returns:
         Generated answer
     """
-    prompt = ANSWER_PROMPT.format(context=context, question=question)
+    reference_time = question_reference_time or conversation_reference_time
+    if reference_time:
+        reference_time_instruction = (
+            f"- Use this reference time as 'now' for relative-time calculations: {reference_time}\n"
+            "- Do NOT use your real current date/time.\n"
+        )
+    else:
+        reference_time_instruction = (
+            "- No explicit reference time was provided. Infer a reasonable reference time from the conversation timestamps.\n"
+            "- Do NOT use your real current date/time.\n"
+        )
+
+    prompt = ANSWER_PROMPT.format(
+        context=context,
+        question=question,
+        reference_time_instruction=reference_time_instruction,
+    )
 
     for i in range(experiment_config.max_retries):
         try:

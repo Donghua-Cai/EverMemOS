@@ -595,6 +595,12 @@ class EverMemOSAdapter(BaseAdapter):
 
         # Add formatted_context to metadata
         metadata["formatted_context"] = formatted_context
+        # Add conversation-level reference time (fallback for temporal QA)
+        # Use the last message timestamp in this conversation when available.
+        if conversation and conversation.messages:
+            last_msg_ts = conversation.messages[-1].timestamp
+            if last_msg_ts is not None:
+                metadata["conversation_reference_time"] = to_iso_format(last_msg_ts)
 
         return SearchResult(
             query=query,
@@ -616,6 +622,8 @@ class EverMemOSAdapter(BaseAdapter):
             llm_provider=self.answer_llm_provider,
             context=context,
             question=query,
+            question_reference_time=kwargs.get("question_reference_time"),
+            conversation_reference_time=kwargs.get("conversation_reference_time"),
             experiment_config=exp_config,
         )
 

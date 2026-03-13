@@ -17,6 +17,9 @@ It is CRITICAL that you move beyond simple fact extraction and perform logical i
 3. PRESERVE frequencies exactly - "every Tuesday and Thursday" not "twice a week"
 4. MAINTAIN all proper nouns and entities as they appear
 
+# TIME ANCHOR RULES:
+{reference_time_instruction}
+
 # RESPONSE FORMAT (You MUST follow this structure):
 
 ## STEP 1: RELEVANT MEMORIES EXTRACTION
@@ -71,4 +74,3 @@ Question: {question}
 
 Now, follow the Chain-of-Thought process above to answer the question:
 """
-

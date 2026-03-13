@@ -77,7 +77,10 @@ def convert_lmeval_s_to_locomo_style(lmeval_data: list) -> list:
             "question": data["question"],
             "answer": data["answer"],
             "evidence": evidence,
-            "category": data["question_type"]
+            "category": data["question_type"],
+            # Preserve question reference time for temporal QA.
+            # This is later injected into answer prompt as the "current time" anchor.
+            "question_date": data.get("question_date"),
         })
         
         # Build conversation
@@ -140,4 +143,3 @@ class LongMemEvalConverter(BaseConverter):
             json.dump(locomo_style_data, f, indent=2, ensure_ascii=False)
         
         print(f"   ✅ Saved {len(locomo_style_data)} entries to {output_path}")
-

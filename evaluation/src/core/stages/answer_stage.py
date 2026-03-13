@@ -170,6 +170,10 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                                 query=query,
                                 context=context,
                                 conversation_id=search_result.conversation_id,
+                                question_reference_time=qa.metadata.get("question_date"),
+                                conversation_reference_time=search_result.retrieval_metadata.get(
+                                    "conversation_reference_time"
+                                ),
                             ),
                             timeout=timeout_seconds
                         )
@@ -277,4 +281,3 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
             ))
     
     return results
-
