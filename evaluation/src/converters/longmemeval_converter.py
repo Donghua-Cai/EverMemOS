@@ -21,18 +21,15 @@ def convert_time_format(input_str: str) -> str:
     # Parse input string to datetime object
     dt_object = datetime.strptime(input_str, input_format)
     
-    # Output format: %-I: 12-hour (no leading zero), %M: minute, %p: AM/PM, 
-    #                %-d: day (no leading zero), %B: full month name, %Y: year
-    output_format = "%-I:%M %p on %-d %B, %Y"
-    
-    # Format to target string and convert AM/PM to lowercase
-    formatted_string = dt_object.strftime(output_format).lower()
-    
-    # Ensure month is capitalized
-    parts = formatted_string.split(' ')
-    parts[4] = parts[4].capitalize()
-    
-    return ' '.join(parts)
+    # Use cross-platform formatting (Windows doesn't support %-I / %-d).
+    hour = dt_object.strftime("%I").lstrip("0") or "0"
+    minute = dt_object.strftime("%M")
+    ampm = dt_object.strftime("%p").lower()
+    day = str(dt_object.day)
+    month = dt_object.strftime("%B")
+    year = dt_object.strftime("%Y")
+
+    return f"{hour}:{minute} {ampm} on {day} {month}, {year}"
 
 
 def convert_lmeval_s_to_locomo_style(lmeval_data: list) -> list:
