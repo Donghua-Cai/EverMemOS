@@ -25,7 +25,7 @@ evaluation:
   # Judge prompt variant:
   # - legacy: existing EverMemOS CORRECT/WRONG judge
   # - vsm: stricter contradiction-aware judge with is_correct/verdict/reason
-  prompt_variant: "legacy"
+  prompt_variant: "vsm"
   
   llm:
     provider: "openai"

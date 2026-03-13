@@ -17,10 +17,11 @@ data:
 # Evaluation configuration
 evaluation:
   type: "llm_judge"
+  prompt_variant: "vsm"
 
   llm:
     provider: "openai"
-    model: "gpt-4o-mini"
+    model: "gpt-4.1-mini"
     api_key: "${LLM_API_KEY}"
     base_url: "${LLM_BASE_URL:https://openrouter.ai/api/v1}"
 
