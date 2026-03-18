@@ -158,6 +158,18 @@ OPTIONS:
 
 IMPORTANT: This is a multiple-choice question. You MUST analyze the context and select the BEST option. In your FINAL ANSWER, return ONLY the option letter like (a), (b), (c), or (d), nothing else."""
                 
+                # Only use question_date as explicit reference time for temporal-reasoning questions.
+                category_str = str(qa.category or "").strip().lower()
+                use_question_reference_time = category_str in {
+                    "temporal-reasoning",
+                    "temporal_reasoning",
+                }
+                question_reference_time = (
+                    qa.metadata.get("question_date")
+                    if use_question_reference_time
+                    else None
+                )
+
                 # Call adapter's answer method with timeout and retry
                 max_retries = 3
                 timeout_seconds = 120.0  # 3 minutes timeout per attempt
@@ -170,7 +182,7 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                                 query=query,
                                 context=context,
                                 conversation_id=search_result.conversation_id,
-                                question_reference_time=qa.metadata.get("question_date"),
+                                question_reference_time=question_reference_time,
                                 conversation_reference_time=search_result.retrieval_metadata.get(
                                     "conversation_reference_time"
                                 ),
