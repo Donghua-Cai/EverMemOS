@@ -761,6 +761,15 @@ class Pipeline:
             "category": ar.category,
             "conversation_id": ar.conversation_id,
             "formatted_context": ar.formatted_context,
+            "answer_latency_ms": ar.answer_latency_ms,
+            "search_latency_ms": ar.search_latency_ms,
+            "total_qa_latency_ms": ar.total_qa_latency_ms,
+            "search_llm_calls": ar.search_llm_calls,
+            "search_embedding_calls": ar.search_embedding_calls,
+            "search_reranker_calls": ar.search_reranker_calls,
+            "search_model_calls_total": ar.search_model_calls_total,
+            "answer_llm_calls": ar.answer_llm_calls,
+            "total_model_calls_including_answer": ar.total_model_calls_including_answer,
             "metadata": ar.metadata,
         }
 

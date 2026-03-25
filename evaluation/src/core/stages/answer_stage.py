@@ -119,6 +119,17 @@ async def run_answer_stage(
                     category=result_dict.get("category"),
                     conversation_id=result_dict.get("conversation_id", ""),
                     formatted_context=result_dict.get("formatted_context", ""),  # Load formatted_context
+                    answer_latency_ms=result_dict.get("answer_latency_ms", 0.0),
+                    search_latency_ms=result_dict.get("search_latency_ms", 0.0),
+                    total_qa_latency_ms=result_dict.get("total_qa_latency_ms", 0.0),
+                    search_llm_calls=result_dict.get("search_llm_calls", 0),
+                    search_embedding_calls=result_dict.get("search_embedding_calls", 0),
+                    search_reranker_calls=result_dict.get("search_reranker_calls", 0),
+                    search_model_calls_total=result_dict.get("search_model_calls_total", 0),
+                    answer_llm_calls=result_dict.get("answer_llm_calls", 0),
+                    total_model_calls_including_answer=result_dict.get(
+                        "total_model_calls_including_answer", 0
+                    ),
                     # search_results not loaded to save space
                 ))
         return results
@@ -140,6 +151,10 @@ async def run_answer_stage(
         nonlocal completed, failed
         
         async with semaphore:
+            qa_answer_start = time.time()
+            search_latency_ms = float(
+                search_result.retrieval_metadata.get("total_latency_ms", 0.0) or 0.0
+            )
             try:
                 # Build context
                 context = build_context(search_result)
@@ -174,9 +189,11 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 max_retries = 3
                 timeout_seconds = 120.0  # 3 minutes timeout per attempt
                 answer = None
+                answer_llm_calls = 0
                 
                 for attempt in range(max_retries):
                     try:
+                        answer_llm_calls += 1
                         answer = await asyncio.wait_for(
                             adapter.answer(
                                 query=query,
@@ -205,6 +222,20 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 tqdm.write(f"  ⚠️ Answer generation failed for {qa.question_id}: {e}")
                 answer = "Error: Failed to generate answer"
                 failed += 1
+
+            answer_latency_ms = (time.time() - qa_answer_start) * 1000.0
+            total_qa_latency_ms = search_latency_ms + answer_latency_ms
+            search_model_calls = search_result.retrieval_metadata.get("model_calls", {}) or {}
+            search_llm_calls = int(search_model_calls.get("llm", 0))
+            search_embedding_calls = int(search_model_calls.get("embedding", 0))
+            search_reranker_calls = int(search_model_calls.get("reranker", 0))
+            search_model_calls_total = int(
+                search_result.retrieval_metadata.get(
+                    "model_calls_total",
+                    search_llm_calls + search_embedding_calls + search_reranker_calls,
+                )
+            )
+            total_model_calls_including_answer = search_model_calls_total + answer_llm_calls
             
             result = AnswerResult(
                 question_id=qa.question_id,
@@ -214,6 +245,15 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 category=qa.category,
                 conversation_id=search_result.conversation_id,
                 formatted_context=context,  # Save actual context used
+                answer_latency_ms=answer_latency_ms,
+                search_latency_ms=search_latency_ms,
+                total_qa_latency_ms=total_qa_latency_ms,
+                search_llm_calls=search_llm_calls,
+                search_embedding_calls=search_embedding_calls,
+                search_reranker_calls=search_reranker_calls,
+                search_model_calls_total=search_model_calls_total,
+                answer_llm_calls=answer_llm_calls,
+                total_model_calls_including_answer=total_model_calls_including_answer,
                 metadata=qa.metadata,  # Pass metadata (contains all_options for multiple-choice)
             )
             
@@ -226,6 +266,15 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 "category": result.category,
                 "conversation_id": result.conversation_id,
                 "formatted_context": result.formatted_context,  # Save formatted_context
+                "answer_latency_ms": result.answer_latency_ms,
+                "search_latency_ms": result.search_latency_ms,
+                "total_qa_latency_ms": result.total_qa_latency_ms,
+                "search_llm_calls": result.search_llm_calls,
+                "search_embedding_calls": result.search_embedding_calls,
+                "search_reranker_calls": result.search_reranker_calls,
+                "search_model_calls_total": result.search_model_calls_total,
+                "answer_llm_calls": result.answer_llm_calls,
+                "total_model_calls_including_answer": result.total_model_calls_including_answer,
                 "metadata": result.metadata,  # Save metadata (contains all_options)
             }
             
@@ -289,6 +338,17 @@ IMPORTANT: This is a multiple-choice question. You MUST analyze the context and 
                 conversation_id=result_dict.get("conversation_id", ""),
                 formatted_context=result_dict.get("formatted_context", ""),
                 search_results=result_dict.get("search_results", []),
+                answer_latency_ms=result_dict.get("answer_latency_ms", 0.0),
+                search_latency_ms=result_dict.get("search_latency_ms", 0.0),
+                total_qa_latency_ms=result_dict.get("total_qa_latency_ms", 0.0),
+                search_llm_calls=result_dict.get("search_llm_calls", 0),
+                search_embedding_calls=result_dict.get("search_embedding_calls", 0),
+                search_reranker_calls=result_dict.get("search_reranker_calls", 0),
+                search_model_calls_total=result_dict.get("search_model_calls_total", 0),
+                answer_llm_calls=result_dict.get("answer_llm_calls", 0),
+                total_model_calls_including_answer=result_dict.get(
+                    "total_model_calls_including_answer", 0
+                ),
                 metadata=result_dict.get("metadata", {}),  # Restore metadata
             ))
     

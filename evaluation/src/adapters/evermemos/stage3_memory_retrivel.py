@@ -354,6 +354,7 @@ async def lightweight_retrieval(
     # Get search mode from config (default to "bm25_only")
     search_mode = getattr(config, 'lightweight_search_mode', 'bm25_only')
 
+    model_calls = {"llm": 0, "embedding": 0, "reranker": 0}
     metadata = {
         "retrieval_mode": "lightweight",
         "lightweight_search_mode": search_mode,
@@ -361,6 +362,7 @@ async def lightweight_retrieval(
         "bm25_count": 0,
         "final_count": 0,
         "total_latency_ms": 0.0,
+        "model_calls": model_calls,
     }
 
     # Execute retrieval based on search mode
@@ -375,7 +377,10 @@ async def lightweight_retrieval(
     elif search_mode == "emb_only":
         # Embedding only mode: semantic matching
         emb_results = await search_with_emb_index(
-            query, emb_index, top_n=config.lightweight_emb_top_n
+            query,
+            emb_index,
+            top_n=config.lightweight_emb_top_n,
+            model_calls=model_calls,
         )
         metadata["emb_count"] = len(emb_results)
         final_results = emb_results[: config.lightweight_final_top_n]
@@ -384,7 +389,10 @@ async def lightweight_retrieval(
         # Hybrid mode (default fallback): BM25 + Embedding + RRF fusion
         # Execute Embedding and BM25 retrieval in parallel
         emb_task = search_with_emb_index(
-            query, emb_index, top_n=config.lightweight_emb_top_n
+            query,
+            emb_index,
+            top_n=config.lightweight_emb_top_n,
+            model_calls=model_calls,
         )
         bm25_task = asyncio.to_thread(
             search_with_bm25_index, query, bm25, docs, config.lightweight_bm25_top_n
@@ -410,6 +418,7 @@ async def lightweight_retrieval(
             final_results = fused_results[: config.lightweight_final_top_n]
 
     metadata["final_count"] = len(final_results)
+    metadata["model_calls_total"] = sum(model_calls.values())
     metadata["total_latency_ms"] = (time.time() - start_time) * 1000
 
     return final_results, metadata
@@ -420,6 +429,7 @@ async def search_with_emb_index(
     emb_index,
     top_n: int = 5,
     query_embedding: Optional[np.ndarray] = None,  # Support pre-computed embedding
+    model_calls: Optional[dict] = None,
 ):
     """
     Execute embedding retrieval using MaxSim strategy.
@@ -447,6 +457,8 @@ async def search_with_emb_index(
     if query_embedding is not None:
         query_vec = query_embedding
     else:
+        if model_calls is not None:
+            model_calls["embedding"] = int(model_calls.get("embedding", 0)) + 1
         query_vec = np.array(await get_vectorize_service().get_embedding(query))
 
     query_norm = np.linalg.norm(query_vec)
@@ -508,6 +520,7 @@ async def hybrid_search_with_rrf(
     bm25_candidates: int = 50,
     rrf_k: int = 60,
     query_embedding: Optional[np.ndarray] = None,  # Support pre-computed embedding
+    model_calls: Optional[dict] = None,
 ) -> List[Tuple[dict, float]]:
     """
     Fuse Embedding and BM25 retrieval results using RRF (hybrid retrieval).
@@ -558,7 +571,11 @@ async def hybrid_search_with_rrf(
     """
     # Execute Embedding and BM25 retrieval in parallel (improve efficiency)
     emb_task = search_with_emb_index(
-        query, emb_index, top_n=emb_candidates, query_embedding=query_embedding
+        query,
+        emb_index,
+        top_n=emb_candidates,
+        query_embedding=query_embedding,
+        model_calls=model_calls,
     )
     bm25_task = asyncio.to_thread(
         search_with_bm25_index, query, bm25, docs, bm25_candidates
@@ -624,6 +641,7 @@ async def agentic_retrieval(
 
     start_time = time.time()
 
+    model_calls = {"llm": 0, "embedding": 0, "reranker": 0}
     metadata = {
         "is_multi_round": False,
         "round1_count": 0,
@@ -634,6 +652,7 @@ async def agentic_retrieval(
         "refined_query": None,
         "final_count": 0,
         "total_latency_ms": 0.0,
+        "model_calls": model_calls,
     }
 
     print(f"\n{'='*60}")
@@ -653,6 +672,7 @@ async def agentic_retrieval(
         emb_candidates=config.hybrid_emb_candidates,
         bm25_candidates=config.hybrid_bm25_candidates,
         rrf_k=config.hybrid_rrf_k,
+        model_calls=model_calls,
     )
 
     metadata["round1_count"] = len(round1_top20)
@@ -660,6 +680,7 @@ async def agentic_retrieval(
 
     if not round1_top20:
         print(f"  [Warning] No results from Round 1")
+        metadata["model_calls_total"] = sum(model_calls.values())
         metadata["total_latency_ms"] = (time.time() - start_time) * 1000
         return [], metadata
 
@@ -678,6 +699,7 @@ async def agentic_retrieval(
             timeout=config.reranker_timeout,
             fallback_threshold=config.reranker_fallback_threshold,
             config=config,
+            model_calls=model_calls,
         )
         metadata["round1_reranked_count"] = len(reranked_top10)
         print(f"  [Rerank] Got Top 10 for sufficiency check")
@@ -689,11 +711,13 @@ async def agentic_retrieval(
 
     if not reranked_top10:
         print(f"  [Warning] Reranking failed, falling back to original Top 20")
+        metadata["model_calls_total"] = sum(model_calls.values())
         metadata["total_latency_ms"] = (time.time() - start_time) * 1000
         return round1_top20, metadata
 
     # LLM Sufficiency Check
     print(f"  [LLM] Checking sufficiency on Top 10...")
+    model_calls["llm"] = int(model_calls.get("llm", 0)) + 1
 
     is_sufficient, reasoning, missing_info, key_info = (
         await agentic_utils.check_sufficiency(
@@ -719,6 +743,7 @@ async def agentic_retrieval(
 
         final_results = reranked_top10
         metadata["final_count"] = len(final_results)
+        metadata["model_calls_total"] = sum(model_calls.values())
         metadata["total_latency_ms"] = (time.time() - start_time) * 1000
 
         print(f"  [Complete] Latency: {metadata['total_latency_ms']:.0f}ms")
@@ -737,6 +762,7 @@ async def agentic_retrieval(
 
     if use_multi_query:
         print(f"  [LLM] Generating multiple refined queries...")
+        model_calls["llm"] = int(model_calls.get("llm", 0)) + 1
 
         # Generate 2-3 complementary queries
         refined_queries, query_strategy = await agentic_utils.generate_multi_queries(
@@ -768,6 +794,7 @@ async def agentic_retrieval(
                 emb_candidates=config.hybrid_emb_candidates,
                 bm25_candidates=config.hybrid_bm25_candidates,
                 rrf_k=config.hybrid_rrf_k,
+                model_calls=model_calls,
             )
             for q in refined_queries
         ]
@@ -801,6 +828,7 @@ async def agentic_retrieval(
     else:
         # Fall back to single-query mode (maintain backward compatibility)
         print(f"  [LLM] Generating single refined query (legacy mode)...")
+        model_calls["llm"] = int(model_calls.get("llm", 0)) + 1
 
         refined_query = await agentic_utils.generate_refined_query(
             original_query=query,
@@ -827,6 +855,7 @@ async def agentic_retrieval(
             emb_candidates=config.hybrid_emb_candidates,
             bm25_candidates=config.hybrid_bm25_candidates,
             rrf_k=config.hybrid_rrf_k,
+            model_calls=model_calls,
         )
 
         metadata["round2_count"] = len(round2_results)
@@ -873,6 +902,7 @@ async def agentic_retrieval(
             timeout=config.reranker_timeout,
             fallback_threshold=config.reranker_fallback_threshold,
             config=config,
+            model_calls=model_calls,
         )
 
         print(f"  [Rerank] Final Top 20 selected")
@@ -882,6 +912,7 @@ async def agentic_retrieval(
         print(f"  [No Rerank] Returning Top 20 from combined results")
 
     metadata["final_count"] = len(final_results)
+    metadata["model_calls_total"] = sum(model_calls.values())
     metadata["total_latency_ms"] = (time.time() - start_time) * 1000
 
     print(
@@ -903,6 +934,7 @@ async def reranker_search(
     timeout: float = 30.0,  # Single batch timeout
     fallback_threshold: float = 0.3,  # Fallback threshold
     config: ExperimentConfig = None,  # Experiment configuration (for getting concurrency)
+    model_calls: Optional[dict] = None,
 ):
     """
     Rerank retrieval results using reranker model (supports batch concurrent processing + enhanced stability).
@@ -1005,6 +1037,8 @@ async def reranker_search(
         for attempt in range(max_retries):
             try:
                 # Add timeout protection
+                if model_calls is not None:
+                    model_calls["reranker"] = int(model_calls.get("reranker", 0)) + 1
                 batch_results = await asyncio.wait_for(
                     reranker.rerank_documents(
                         query, batch_texts, instruction=reranker_instruction

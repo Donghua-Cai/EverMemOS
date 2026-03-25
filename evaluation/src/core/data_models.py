@@ -71,6 +71,15 @@ class AnswerResult:
     conversation_id: str = ""
     formatted_context: str = ""  # Actual context used
     search_results: List[Dict[str, Any]] = field(default_factory=list) 
+    answer_latency_ms: float = 0.0  # Time spent in answer stage (excluding eval)
+    search_latency_ms: float = 0.0  # Retrieved from search metadata
+    total_qa_latency_ms: float = 0.0  # search + answer
+    search_llm_calls: int = 0
+    search_embedding_calls: int = 0
+    search_reranker_calls: int = 0
+    search_model_calls_total: int = 0
+    answer_llm_calls: int = 0
+    total_model_calls_including_answer: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -82,4 +91,3 @@ class EvaluationResult:
     accuracy: float
     detailed_results: List[Dict[str, Any]] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
-

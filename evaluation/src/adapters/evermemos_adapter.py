@@ -536,6 +536,7 @@ class EverMemOSAdapter(BaseAdapter):
             )
         else:
             # Default to hybrid retrieval
+            model_calls = {"llm": 0, "embedding": 0, "reranker": 0}
             top_results = await stage3_memory_retrivel.hybrid_search_with_rrf(
                 query=query,
                 emb_index=emb_index,
@@ -545,8 +546,13 @@ class EverMemOSAdapter(BaseAdapter):
                 emb_candidates=search_config.get("hybrid_emb_candidates", 100),
                 bm25_candidates=search_config.get("hybrid_bm25_candidates", 100),
                 rrf_k=search_config.get("hybrid_rrf_k", 60),
+                model_calls=model_calls,
             )
-            metadata = {}
+            metadata = {
+                "retrieval_mode": "hybrid",
+                "model_calls": model_calls,
+                "model_calls_total": sum(model_calls.values()),
+            }
 
         # Get response_top_k from config (use early for consistency)
         response_top_k = exp_config.response_top_k
